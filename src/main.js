@@ -28,8 +28,11 @@ ctx.imageSmoothingEnabled = format.smoothing;
 var metadataList = [];
 var attributesList = [];
 var dnaList = new Set();
+dnaList.clear();
 const DNA_DELIMITER = "-";
 const HashlipsGiffer = require(`${basePath}/modules/HashlipsGiffer.js`);
+
+const actorTypes = ["OI", "OKSU", "OBPSD", "OBPS", "OP", "OT"];
 
 let hashlipsGiffer = null;
 
@@ -143,14 +146,11 @@ const addMetadata = (_dna, _edition) => {
   };
   if (network == NETWORK.sol) {
     tempMetadata = {
-      //Added metadata for solana
       name: tempMetadata.name,
       symbol: solanaMetadata.symbol,
       description: tempMetadata.description,
-      //Added metadata for solana
       seller_fee_basis_points: solanaMetadata.seller_fee_basis_points,
       image: `${_edition}.png`,
-      //Added metadata for solana
       external_url: solanaMetadata.external_url,
       edition: _edition,
       ...extraMetadata,
@@ -198,23 +198,25 @@ const addText = (_sig, x, y, size) => {
   ctx.fillText(_sig, x, y);
 };
 
-const drawElement = (_renderObject, _index, _layersLen) => {
+const drawElement = (_renderObject, _index, _layersLen, editionCount) => {
   ctx.globalAlpha = _renderObject.layer.opacity;
   ctx.globalCompositeOperation = _renderObject.layer.blend;
-  text.only
-    ? addText(
-        `${_renderObject.layer.name}${text.spacer}${_renderObject.layer.selectedElement.name}`,
-        text.xGap,
-        text.yGap * (_index + 1),
-        text.size
-      )
-    : ctx.drawImage(
-        _renderObject.loadedImage,
-        0,
-        0,
-        format.width,
-        format.height
-      );
+
+  if (_renderObject.layer.name === "communaute") {
+    const actorIndex = editionCount - 1;
+    const dynamicText = actorTypes[actorIndex % actorTypes.length];
+    addText(dynamicText, text.xGap, text.yGap, text.size);
+  }
+
+  if (!text.only) {
+    ctx.drawImage(
+      _renderObject.loadedImage,
+      0,
+      0,
+      format.width,
+      format.height
+    );
+  }
 
   addAttributes(_renderObject);
 };
@@ -234,14 +236,6 @@ const constructLayerToDna = (_dna = "", _layers = []) => {
   return mappedDnaToLayers;
 };
 
-/**
- * In some cases a DNA string may contain optional query parameters for options
- * such as bypassing the DNA isUnique check, this function filters out those
- * items without modifying the stored DNA.
- *
- * @param {String} _dna New DNA string
- * @returns new DNA string with any items that should be filtered, removed.
- */
 const filterDNAOptions = (_dna) => {
   const dnaItems = _dna.split(DNA_DELIMITER);
   const filteredDNA = dnaItems.filter((element) => {
@@ -261,14 +255,6 @@ const filterDNAOptions = (_dna) => {
   return filteredDNA.join(DNA_DELIMITER);
 };
 
-/**
- * Cleaning function for DNA strings. When DNA strings include an option, it
- * is added to the filename with a ?setting=value query string. It needs to be
- * removed to properly access the file name before Drawing.
- *
- * @param {String} _dna The entire newDNA string
- * @returns Cleaned DNA string without querystring parameters.
- */
 const removeQueryStrings = (_dna) => {
   const query = /(\?.*$)/;
   return _dna.replace(query, "");
@@ -286,10 +272,8 @@ const createDna = (_layers) => {
     layer.elements.forEach((element) => {
       totalWeight += element.weight;
     });
-    // number between 0 - totalWeight
     let random = Math.floor(Math.random() * totalWeight);
     for (var i = 0; i < layer.elements.length; i++) {
-      // subtract the current weight from the random weight until we reach a sub zero value.
       random -= layer.elements[i].weight;
       if (random < 0) {
         return randNum.push(
@@ -326,13 +310,13 @@ function shuffle(array) {
   while (currentIndex != 0) {
     randomIndex = Math.floor(Math.random() * currentIndex);
     currentIndex--;
-    [array[currentIndex], array[randomIndex]] = [
+    [array[currentIndex], array[randomIndex] = [
       array[randomIndex],
       array[currentIndex],
-    ];
+    ]];
   }
   return array;
-}
+};
 
 const startCreating = async () => {
   let layerConfigIndex = 0;
@@ -389,7 +373,8 @@ const startCreating = async () => {
             drawElement(
               renderObject,
               index,
-              layerConfigurations[layerConfigIndex].layersOrder.length
+              layerConfigurations[layerConfigIndex].layersOrder.length,
+              editionCount // Passe editionCount ici
             );
             if (gif.export) {
               hashlipsGiffer.add();
@@ -430,3 +415,5 @@ const startCreating = async () => {
 };
 
 module.exports = { startCreating, buildSetup, getElements };
+
+startCreating();

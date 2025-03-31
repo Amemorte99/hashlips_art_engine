@@ -25,6 +25,8 @@
   "license": "MIT",
   "dependencies": {
     "canvas": "^2.11.2",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.5",
     "gif-encoder-2": "^1.0.5",
     "sha1": "^1.1.1"
   }
