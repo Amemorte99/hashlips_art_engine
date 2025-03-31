@@ -202,12 +202,6 @@ const drawElement = (_renderObject, _index, _layersLen, editionCount) => {
   ctx.globalAlpha = _renderObject.layer.opacity;
   ctx.globalCompositeOperation = _renderObject.layer.blend;
 
-  if (_renderObject.layer.name === "communaute") {
-    const actorIndex = editionCount - 1;
-    const dynamicText = actorTypes[actorIndex % actorTypes.length];
-    addText(dynamicText, text.xGap, text.yGap, text.size);
-  }
-
   if (!text.only) {
     ctx.drawImage(
       _renderObject.loadedImage,
@@ -216,6 +210,12 @@ const drawElement = (_renderObject, _index, _layersLen, editionCount) => {
       format.width,
       format.height
     );
+  }
+
+  if (_renderObject.layer.name === "communaute") {
+    const actorIndex = editionCount - 1;
+    const dynamicText = actorTypes[actorIndex % actorTypes.length];
+    addText(dynamicText, text.xGap, text.yGap, text.size);
   }
 
   addAttributes(_renderObject);
@@ -310,13 +310,13 @@ function shuffle(array) {
   while (currentIndex != 0) {
     randomIndex = Math.floor(Math.random() * currentIndex);
     currentIndex--;
-    [array[currentIndex], array[randomIndex] = [
+    [array[currentIndex], array[randomIndex]] = [
       array[randomIndex],
-      array[currentIndex],
-    ]];
+      array[currentIndex]
+    ];
   }
   return array;
-};
+}
 
 const startCreating = async () => {
   let layerConfigIndex = 0;
@@ -374,7 +374,7 @@ const startCreating = async () => {
               renderObject,
               index,
               layerConfigurations[layerConfigIndex].layersOrder.length,
-              editionCount // Passe editionCount ici
+              editionCount
             );
             if (gif.export) {
               hashlipsGiffer.add();
