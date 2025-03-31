@@ -22,9 +22,10 @@ const solanaMetadata = {
 
 const layerConfigurations = [
   {
-    growEditionSizeTo: 2,
+    growEditionSizeTo: 6,
     layersOrder: [
       { name: "communaute" },
+      { name: "region" },
     ],
   },
 ];
