@@ -1,7 +1,5 @@
 const basePath = process.cwd();
-const { startCreating, buildSetup } = require(`${basePath}/src/main.js`);
+const { startCreating } = require(`${basePath}/src/main.js`); // Charge main.js du répertoire racine
 
-(() => {
-  buildSetup();
-  startCreating();
-})();
+// Exécute la génération
+startCreating().catch((err) => console.error(err));

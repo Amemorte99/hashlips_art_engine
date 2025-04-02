@@ -1,419 +1,237 @@
-const basePath = process.cwd();
-const { NETWORK } = require(`${basePath}/constants/network.js`);
 const fs = require("fs");
-const sha1 = require(`${basePath}/node_modules/sha1`);
-const { createCanvas, loadImage } = require(`${basePath}/node_modules/canvas`);
+const { createCanvas, loadImage } = require("canvas");
+const basePath = process.cwd();
 const buildDir = `${basePath}/build`;
 const layersDir = `${basePath}/layers`;
-const {
-  format,
-  baseUri,
-  description,
-  background,
-  uniqueDnaTorrance,
-  layerConfigurations,
-  rarityDelimiter,
-  shuffleLayerConfigurations,
-  debugLogs,
-  extraMetadata,
-  text,
-  namePrefix,
-  network,
-  solanaMetadata,
-  gif,
-} = require(`${basePath}/src/config.js`);
+
+// Configuration du canvas
+const format = {
+  width: 1000,
+  height: 700,
+};
 const canvas = createCanvas(format.width, format.height);
 const ctx = canvas.getContext("2d");
-ctx.imageSmoothingEnabled = format.smoothing;
-var metadataList = [];
-var attributesList = [];
-var dnaList = new Set();
-dnaList.clear();
-const DNA_DELIMITER = "-";
-const HashlipsGiffer = require(`${basePath}/modules/HashlipsGiffer.js`);
 
-const actorTypes = ["OI", "OKSU", "OBPSD", "OBPS", "OP", "OT"];
+// Configurations de métadonnées
+const namePrefix = "Production Commune KSUNFT";
+const description = "Nous sommes la communauté marchande de la Production Commune, répartie en six couches d’acteurs offreurs du Service SMCIPN Intérim Mévente Zéro. Chaque NFT représente un 'Acteur de l’Offre' (OI, OKSU, OBPSD, OBPS, OP, OT) ayant acheté son KSU, une boutique en ligne sur la plateforme GIE ESMC, garantissant une clientèle solvable et perpétuelle.";
+const baseUri = "ipfs://YourCIDToReplace/";
 
-let hashlipsGiffer = null;
+const extraMetadata = {
+  platform: "GIE ESMC",
+  service: "SMCIPN Intérim Mévente Zéro",
+};
 
-const buildSetup = () => {
-  if (fs.existsSync(buildDir)) {
-    fs.rmdirSync(buildDir, { recursive: true });
+// Définition des niveaux géographiques et leurs coûts (en trillions)
+const franchiseLevels = {
+  "Villages/Cantons": {
+    count: 5200000,
+    costs: {
+      "Vague 0": 998.56,
+      "1P V1": 1079,
+      "1P V2": 1222,
+      "1P V3": 1365,
+      "2P V2": 1508,
+      "2P V3": 1794,
+      "Final": 2002,
+    },
+  },
+  "Communes": {
+    count: 1300000,
+    costs: {
+      "Vague 0": 249.64,
+      "1P V1": 269.75,
+      "1P V2": 305.5,
+      "1P V3": 341.25,
+      "2P V2": 377,
+      "2P V3": 448.5,
+      "Final": 500.5,
+    },
+  },
+  "Districts": {
+    count: 45000,
+    costs: {
+      "Vague 0": 8.64,
+      "1P V1": 9.34,
+      "1P V2": 10.58,
+      "1P V3": 11.81,
+      "2P V2": 13.05,
+      "2P V3": 15.53,
+      "Final": 17.33,
+    },
+  },
+  "Régions/Provinces": {
+    count: 7500,
+    costs: {
+      "Vague 0": 1.44,
+      "1P V1": 1.56,
+      "1P V2": 1.76,
+      "1P V3": 1.97,
+      "2P V2": 2.18,
+      "2P V3": 2.59,
+      "Final": 2.89,
+    },
+  },
+  "Pays": {
+    count: 197,
+    costs: {
+      "Vague 0": 0.03783,
+      "1P V1": 0.04088,
+      "1P V2": 0.0463,
+      "1P V3": 0.05171,
+      "2P V2": 0.05713,
+      "2P V3": 0.06797,
+      "Final": 0.07585,
+    },
+  },
+  "Zones Monétaires": {
+    count: 22,
+    costs: {
+      "Vague 0": 0.00422,
+      "1P V1": 0.00457,
+      "1P V2": 0.00517,
+      "1P V3": 0.00578,
+      "2P V2": 0.00638,
+      "2P V3": 0.00759,
+      "Final": 0.00847,
+    },
+  },
+  "Continents": {
+    count: 5,
+    costs: {
+      "Vague 0": 0.00096,
+      "1P V1": 0.00104,
+      "1P V2": 0.00118,
+      "1P V3": 0.00131,
+      "2P V2": 0.00145,
+      "2P V3": 0.00173,
+      "Final": 0.00193,
+    },
+  },
+  "Monde": {
+    count: 1,
+    costs: {
+      "Vague 0": 0.00019,
+      "1P V1": 0.00021,
+      "1P V2": 0.00024,
+      "1P V3": 0.00026,
+      "2P V2": 0.00029,
+      "2P V3": 0.00035,
+      "Final": 0.00039,
+    },
+  },
+};
+
+// Liste des niveaux pour associer aux 8 images
+const levelOrder = [
+  "Villages/Cantons",
+  "Communes",
+  "Districts",
+  "Régions/Provinces",
+  "Pays",
+  "Zones Monétaires",
+  "Continents",
+  "Monde",
+];
+
+// Gestion des DNA pour éviter les doublons
+const dnaList = new Set();
+
+// Fonction pour nettoyer le répertoire de sortie
+const cleanDir = (dirPath) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath);
+  } else {
+    fs.readdirSync(dirPath).forEach((file) => fs.unlinkSync(`${dirPath}/${file}`));
   }
-  fs.mkdirSync(buildDir);
-  fs.mkdirSync(`${buildDir}/json`);
-  fs.mkdirSync(`${buildDir}/images`);
-  if (gif.export) {
-    fs.mkdirSync(`${buildDir}/gifs`);
+};
+
+// Fonction pour générer un NFT
+const generateNFT = async (level, amount) => {
+  if (!franchiseLevels[level]) {
+    console.error(`Niveau invalide : ${level}`);
+    return;
   }
-};
 
-const getRarityWeight = (_str) => {
-  let nameWithoutExtension = _str.slice(0, -4);
-  var nameWithoutWeight = Number(
-    nameWithoutExtension.split(rarityDelimiter).pop()
-  );
-  if (isNaN(nameWithoutWeight)) {
-    nameWithoutWeight = 1;
+  let selectedWave = null;
+  for (const [wave, cost] of Object.entries(franchiseLevels[level].costs)) {
+    if (Math.abs(cost - amount) < 0.0001) {
+      selectedWave = wave;
+      break;
+    }
   }
-  return nameWithoutWeight;
-};
-
-const cleanDna = (_str) => {
-  const withoutOptions = removeQueryStrings(_str);
-  var dna = Number(withoutOptions.split(":").shift());
-  return dna;
-};
-
-const cleanName = (_str) => {
-  let nameWithoutExtension = _str.slice(0, -4);
-  var nameWithoutWeight = nameWithoutExtension.split(rarityDelimiter).shift();
-  return nameWithoutWeight;
-};
-
-const getElements = (path) => {
-  return fs
-    .readdirSync(path)
-    .filter((item) => !/(^|\/)\.[^\/\.]/g.test(item))
-    .map((i, index) => {
-      if (i.includes("-")) {
-        throw new Error(`layer name can not contain dashes, please fix: ${i}`);
-      }
-      return {
-        id: index,
-        name: cleanName(i),
-        filename: i,
-        path: `${path}${i}`,
-        weight: getRarityWeight(i),
-      };
-    });
-};
-
-const layersSetup = (layersOrder) => {
-  const layers = layersOrder.map((layerObj, index) => ({
-    id: index,
-    elements: getElements(`${layersDir}/${layerObj.name}/`),
-    name:
-      layerObj.options?.["displayName"] != undefined
-        ? layerObj.options?.["displayName"]
-        : layerObj.name,
-    blend:
-      layerObj.options?.["blend"] != undefined
-        ? layerObj.options?.["blend"]
-        : "source-over",
-    opacity:
-      layerObj.options?.["opacity"] != undefined
-        ? layerObj.options?.["opacity"]
-        : 1,
-    bypassDNA:
-      layerObj.options?.["bypassDNA"] !== undefined
-        ? layerObj.options?.["bypassDNA"]
-        : false,
-  }));
-  return layers;
-};
-
-const saveImage = (_editionCount) => {
-  fs.writeFileSync(
-    `${buildDir}/images/${_editionCount}.png`,
-    canvas.toBuffer("image/png")
-  );
-};
-
-const genColor = () => {
-  let hue = Math.floor(Math.random() * 360);
-  let pastel = `hsl(${hue}, 100%, ${background.brightness})`;
-  return pastel;
-};
-
-const drawBackground = () => {
-  ctx.fillStyle = background.static ? background.default : genColor();
-  ctx.fillRect(0, 0, format.width, format.height);
-};
-
-const addMetadata = (_dna, _edition) => {
-  let dateTime = Date.now();
-  let tempMetadata = {
-    name: `${namePrefix} #${_edition}`,
-    description: description,
-    image: `${baseUri}/${_edition}.png`,
-    dna: sha1(_dna),
-    edition: _edition,
-    date: dateTime,
-    ...extraMetadata,
-    attributes: attributesList,
-    compiler: "HashLips Art Engine",
-  };
-  if (network == NETWORK.sol) {
-    tempMetadata = {
-      name: tempMetadata.name,
-      symbol: solanaMetadata.symbol,
-      description: tempMetadata.description,
-      seller_fee_basis_points: solanaMetadata.seller_fee_basis_points,
-      image: `${_edition}.png`,
-      external_url: solanaMetadata.external_url,
-      edition: _edition,
-      ...extraMetadata,
-      attributes: tempMetadata.attributes,
-      properties: {
-        files: [
-          {
-            uri: `${_edition}.png`,
-            type: "image/png",
-          },
-        ],
-        category: "image",
-        creators: solanaMetadata.creators,
-      },
-    };
+  if (!selectedWave) {
+    console.error(`Montant invalide pour ${level} : ${amount}`);
+    return;
   }
-  metadataList.push(tempMetadata);
-  attributesList = [];
-};
 
-const addAttributes = (_element) => {
-  let selectedElement = _element.layer.selectedElement;
-  attributesList.push({
-    trait_type: _element.layer.name,
-    value: selectedElement.name,
-  });
-};
+  const newDna = `${level}:${selectedWave}`;
+  if (dnaList.has(newDna)) {
+    console.log(`DNA déjà utilisé : ${newDna}`);
+    return;
+  }
+  dnaList.add(newDna);
 
-const loadLayerImg = async (_layer) => {
+  const levelIndex = levelOrder.indexOf(level);
+  const imageFileName = `${level.replace("/", "-")}.jpg`;
+  const layerPath = `${layersDir}/Franchise/${imageFileName}`;
+  let loadedImage;
   try {
-    return new Promise(async (resolve) => {
-      const image = await loadImage(`${_layer.selectedElement.path}`);
-      resolve({ layer: _layer, loadedImage: image });
-    });
-  } catch (error) {
-    console.error("Error loading image:", error);
-  }
-};
-
-const addText = (_sig, x, y, size) => {
-  ctx.fillStyle = text.color;
-  ctx.font = `${text.weight} ${size}pt ${text.family}`;
-  ctx.textBaseline = text.baseline;
-  ctx.textAlign = text.align;
-  ctx.fillText(_sig, x, y);
-};
-
-const drawElement = (_renderObject, _index, _layersLen, editionCount) => {
-  ctx.globalAlpha = _renderObject.layer.opacity;
-  ctx.globalCompositeOperation = _renderObject.layer.blend;
-
-  if (!text.only) {
-    ctx.drawImage(
-      _renderObject.loadedImage,
-      0,
-      0,
-      format.width,
-      format.height
-    );
+    loadedImage = await loadImage(layerPath);
+  } catch (e) {
+    console.error(`Image introuvable pour ${level} : ${layerPath}`);
+    return;
   }
 
-  if (_renderObject.layer.name === "communaute") {
-    const actorIndex = editionCount - 1;
-    const dynamicText = actorTypes[actorIndex % actorTypes.length];
-    addText(dynamicText, text.xGap, text.yGap, text.size);
-  }
+  ctx.clearRect(0, 0, format.width, format.height);
+  ctx.drawImage(loadedImage, 0, 0, format.width, format.height);
 
-  addAttributes(_renderObject);
-};
+  ctx.font = "30px Arial";
+  ctx.fillStyle = "white";
+  ctx.fillText(`${level}`, 50, 50);
+  ctx.fillText(`Coût: ${amount} T`, 50, 90);
+  ctx.fillText(`Vague: ${selectedWave}`, 50, 130);
 
-const constructLayerToDna = (_dna = "", _layers = []) => {
-  let mappedDnaToLayers = _layers.map((layer, index) => {
-    let selectedElement = layer.elements.find(
-      (e) => e.id == cleanDna(_dna.split(DNA_DELIMITER)[index])
-    );
-    return {
-      name: layer.name,
-      blend: layer.blend,
-      opacity: layer.opacity,
-      selectedElement: selectedElement,
-    };
-  });
-  return mappedDnaToLayers;
-};
+  const editionCount = dnaList.size;
+  const imagePath = `${buildDir}/images/${editionCount}.png`;
+  const buffer = canvas.toBuffer("image/png");
+  fs.writeFileSync(imagePath, buffer);
+  console.log(`NFT généré : ${imagePath} avec DNA ${newDna}`);
 
-const filterDNAOptions = (_dna) => {
-  const dnaItems = _dna.split(DNA_DELIMITER);
-  const filteredDNA = dnaItems.filter((element) => {
-    const query = /(\?.*$)/;
-    const querystring = query.exec(element);
-    if (!querystring) {
-      return true;
-    }
-    const options = querystring[1].split("&").reduce((r, setting) => {
-      const keyPairs = setting.split("=");
-      return { ...r, [keyPairs[0]]: keyPairs[1] };
-    }, []);
-
-    return options.bypassDNA;
-  });
-
-  return filteredDNA.join(DNA_DELIMITER);
-};
-
-const removeQueryStrings = (_dna) => {
-  const query = /(\?.*$)/;
-  return _dna.replace(query, "");
-};
-
-const isDnaUnique = (_DnaList = new Set(), _dna = "") => {
-  const _filteredDNA = filterDNAOptions(_dna);
-  return !_DnaList.has(_filteredDNA);
-};
-
-const createDna = (_layers) => {
-  let randNum = [];
-  _layers.forEach((layer) => {
-    var totalWeight = 0;
-    layer.elements.forEach((element) => {
-      totalWeight += element.weight;
-    });
-    let random = Math.floor(Math.random() * totalWeight);
-    for (var i = 0; i < layer.elements.length; i++) {
-      random -= layer.elements[i].weight;
-      if (random < 0) {
-        return randNum.push(
-          `${layer.elements[i].id}:${layer.elements[i].filename}${
-            layer.bypassDNA ? "?bypassDNA=true" : ""
-          }`
-        );
-      }
-    }
-  });
-  return randNum.join(DNA_DELIMITER);
-};
-
-const writeMetaData = (_data) => {
-  fs.writeFileSync(`${buildDir}/json/_metadata.json`, _data);
-};
-
-const saveMetaDataSingleFile = (_editionCount) => {
-  let metadata = metadataList.find((meta) => meta.edition == _editionCount);
-  debugLogs
-    ? console.log(
-        `Writing metadata for ${_editionCount}: ${JSON.stringify(metadata)}`
-      )
-    : null;
+  const metadata = {
+    name: `${namePrefix} - ${level} #${editionCount}`,
+    description: description,
+    image: `${baseUri}${editionCount}.png`,
+    dna: newDna,
+    attributes: [
+      { trait_type: "Niveau", value: level },
+      { trait_type: "Vague", value: selectedWave },
+      { trait_type: "Coût", value: amount },
+    ],
+    ...extraMetadata,
+  };
   fs.writeFileSync(
-    `${buildDir}/json/${_editionCount}.json`,
+    `${buildDir}/json/${editionCount}.json`,
     JSON.stringify(metadata, null, 2)
   );
 };
 
-function shuffle(array) {
-  let currentIndex = array.length,
-    randomIndex;
-  while (currentIndex != 0) {
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-    [array[currentIndex], array[randomIndex]] = [
-      array[randomIndex],
-      array[currentIndex]
-    ];
-  }
-  return array;
-}
-
+// Fonction principale pour démarrer la génération
 const startCreating = async () => {
-  let layerConfigIndex = 0;
-  let editionCount = 1;
-  let failedCount = 0;
-  let abstractedIndexes = [];
-  for (
-    let i = network == NETWORK.sol ? 0 : 1;
-    i <= layerConfigurations[layerConfigurations.length - 1].growEditionSizeTo;
-    i++
-  ) {
-    abstractedIndexes.push(i);
-  }
-  if (shuffleLayerConfigurations) {
-    abstractedIndexes = shuffle(abstractedIndexes);
-  }
-  debugLogs
-    ? console.log("Editions left to create: ", abstractedIndexes)
-    : null;
-  while (layerConfigIndex < layerConfigurations.length) {
-    const layers = layersSetup(
-      layerConfigurations[layerConfigIndex].layersOrder
-    );
-    while (
-      editionCount <= layerConfigurations[layerConfigIndex].growEditionSizeTo
-    ) {
-      let newDna = createDna(layers);
-      if (isDnaUnique(dnaList, newDna)) {
-        let results = constructLayerToDna(newDna, layers);
-        let loadedElements = [];
+  cleanDir(`${buildDir}/images`);
+  cleanDir(`${buildDir}/json`);
 
-        results.forEach((layer) => {
-          loadedElements.push(loadLayerImg(layer));
-        });
+  await generateNFT("Villages/Cantons", 998.56);
+  await generateNFT("Communes", 269.75);
+  await generateNFT("Districts", 10.58);
+  await generateNFT("Régions/Provinces", 1.97);
+  await generateNFT("Pays", 0.05713);
+  await generateNFT("Zones Monétaires", 0.00759);
+  await generateNFT("Continents", 0.00193);
+  await generateNFT("Monde", 0.00019);
 
-        await Promise.all(loadedElements).then((renderObjectArray) => {
-          debugLogs ? console.log("Clearing canvas") : null;
-          ctx.clearRect(0, 0, format.width, format.height);
-          if (gif.export) {
-            hashlipsGiffer = new HashlipsGiffer(
-              canvas,
-              ctx,
-              `${buildDir}/gifs/${abstractedIndexes[0]}.gif`,
-              gif.repeat,
-              gif.quality,
-              gif.delay
-            );
-            hashlipsGiffer.start();
-          }
-          if (background.generate) {
-            drawBackground();
-          }
-          renderObjectArray.forEach((renderObject, index) => {
-            drawElement(
-              renderObject,
-              index,
-              layerConfigurations[layerConfigIndex].layersOrder.length,
-              editionCount
-            );
-            if (gif.export) {
-              hashlipsGiffer.add();
-            }
-          });
-          if (gif.export) {
-            hashlipsGiffer.stop();
-          }
-          debugLogs
-            ? console.log("Editions left to create: ", abstractedIndexes)
-            : null;
-          saveImage(abstractedIndexes[0]);
-          addMetadata(newDna, abstractedIndexes[0]);
-          saveMetaDataSingleFile(abstractedIndexes[0]);
-          console.log(
-            `Created edition: ${abstractedIndexes[0]}, with DNA: ${sha1(
-              newDna
-            )}`
-          );
-        });
-        dnaList.add(filterDNAOptions(newDna));
-        editionCount++;
-        abstractedIndexes.shift();
-      } else {
-        console.log("DNA exists!");
-        failedCount++;
-        if (failedCount >= uniqueDnaTorrance) {
-          console.log(
-            `You need more layers or elements to grow your edition to ${layerConfigurations[layerConfigIndex].growEditionSizeTo} artworks!`
-          );
-          process.exit();
-        }
-      }
-    }
-    layerConfigIndex++;
-  }
-  writeMetaData(JSON.stringify(metadataList, null, 2));
+  console.log("Génération terminée !");
 };
 
-module.exports = { startCreating, buildSetup, getElements };
-
-startCreating();
+// Exporte startCreating pour index.js
+module.exports = { startCreating };

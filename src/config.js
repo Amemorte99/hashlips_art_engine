@@ -25,7 +25,6 @@ const layerConfigurations = [
     growEditionSizeTo: 6,
     layersOrder: [
       { name: "communaute" },
-      { name: "region" },
     ],
   },
 ];
